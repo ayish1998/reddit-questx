@@ -7,48 +7,52 @@ Devvit.configure({
 
 // Add a menu item to the subreddit menu for instantiating the new experience post
 Devvit.addMenuItem({
-  label: 'Add my post',
+  label: 'Start an Adventure Quest',
   location: 'subreddit',
   forUserType: 'moderator',
   onPress: async (_event, context) => {
     const { reddit, ui } = context;
-    ui.showToast("Submitting your post - upon completion you'll navigate there.");
+    ui.showToast("Creating a new Adventure Quest...");
 
     const subreddit = await reddit.getCurrentSubreddit();
     const post = await reddit.submitPost({
-      title: 'My devvit post',
+      title: '🌟 New Adventure Quest Begins! 🌟',
       subredditName: subreddit.name,
-      // The preview appears while the post loads
       preview: (
         <vstack height="100%" width="100%" alignment="middle center">
-          <text size="large">Loading ...</text>
+          <text size="large">Loading your adventure...</text>
         </vstack>
       ),
     });
+
     ui.navigateTo(post);
   },
 });
 
-// Add a post type definition
+// Add a custom "Adventure Quest" post type
 Devvit.addCustomPostType({
-  name: 'Experience Post',
+  name: 'Adventure Quest',
   height: 'regular',
   render: (_context) => {
-    const [counter, setCounter] = useState(0);
+    const [votes, setVotes] = useState({ choiceA: 0, choiceB: 0 });
 
     return (
       <vstack height="100%" width="100%" gap="medium" alignment="center middle">
-        <image
-          url="logo.png"
-          description="logo"
-          imageHeight={256}
-          imageWidth={256}
-          height="48px"
-          width="48px"
-        />
-        <text size="large">{`Click counter: ${counter}`}</text>
-        <button appearance="primary" onPress={() => setCounter((counter) => counter + 1)}>
-          Click me!
+        <text size="large">🧙‍♂️ A mysterious traveler approaches...</text>
+        <text size="medium">What should you do?</text>
+
+        <button
+          appearance="primary"
+          onPress={() => setVotes((prev) => ({ ...prev, choiceA: prev.choiceA + 1 }))}
+        >
+          🏹 Attack the traveler! ({votes.choiceA} votes)
+        </button>
+
+        <button
+          appearance="secondary"
+          onPress={() => setVotes((prev) => ({ ...prev, choiceB: prev.choiceB + 1 }))}
+        >
+          🤝 Greet the traveler! ({votes.choiceB} votes)
         </button>
       </vstack>
     );

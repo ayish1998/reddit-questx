@@ -29,29 +29,51 @@ Devvit.addMenuItem({
   },
 });
 
-// ✅ Custom post type: "Adventure Quest" with voting feature
+// ✅ Custom post type: "Adventure Quest" with dynamic voting
 Devvit.addCustomPostType({
   name: 'Adventure Quest',
   height: 'regular',
-  render: (context) => {
+  render: async (context) => {
+    const { reddit } = context;
     const [votes, setVotes] = useState({ choiceA: 0, choiceB: 0 });
+
+    useEffect(() => {
+      const fetchComments = async () => {
+        const post = await reddit.getCurrentPost();
+        const comments = await reddit.getComments({ postId: post.id });
+
+        let attackVotes = 0;
+        let greetVotes = 0;
+
+        comments.forEach(async (comment) => {
+          const text = comment.body.toLowerCase();
+
+          if (text === "attack") {
+            attackVotes++;
+            await reddit.vote({ id: comment.id, direction: 1 }); // Upvote correct comment
+          } else if (text === "greet") {
+            greetVotes++;
+            await reddit.vote({ id: comment.id, direction: 1 }); // Upvote correct comment
+          } else {
+            await reddit.vote({ id: comment.id, direction: -1 }); // Downvote invalid comment
+          }
+        });
+
+        setVotes({ choiceA: attackVotes, choiceB: greetVotes });
+      };
+
+      fetchComments();
+    }, []);
 
     return (
       <vstack height="100%" width="100%" gap="medium" alignment="center middle">
         <text size="large">🧙‍♂️ A mysterious traveler approaches...</text>
         <text size="medium">What should you do?</text>
 
-        <button
-          appearance="primary"
-          onPress={() => setVotes((prev) => ({ ...prev, choiceA: prev.choiceA + 1 }))}>
-          🏹 Attack the traveler! ({votes.choiceA} votes)
-        </button>
+        <text size="medium">🏹 Attack the traveler! ({votes.choiceA} votes)</text>
+        <text size="medium">🤝 Greet the traveler! ({votes.choiceB} votes)</text>
 
-        <button
-          appearance="secondary"
-          onPress={() => setVotes((prev) => ({ ...prev, choiceB: prev.choiceB + 1 }))}>
-          🤝 Greet the traveler! ({votes.choiceB} votes)
-        </button>
+        <text size="small">⚠️ To vote, comment "Attack" or "Greet". Invalid comments will be downvoted.</text>
       </vstack>
     );
   },

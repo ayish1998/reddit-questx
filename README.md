@@ -6,7 +6,7 @@ Features
 ✅ Supports moderator tools and permissions
 ✅ Stores collected data for future improvements
 
-##Installation & Setup
+Installation & Setup
 Clone this repository:
 git clone https://github.com/ayish1998/reddit-questx.git
 cd reddit-questx
@@ -17,12 +17,12 @@ devvit playtest RedditQuestTest
 Visit the test subreddit to check for updates:
 r/RedditQuestTest
 
-##Usage
+Usage
 Open r/RedditQuestTest and test the app functionalities.
 Customize settings in the Reddit Developer Dashboard.
 Modify the app code and push updates as needed.
 
-##Contributing
+Contributing
 Feel free to submit issues or feature requests. Fork the repository and create a pull request for any changes.
 
 License

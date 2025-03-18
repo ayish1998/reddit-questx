@@ -5,14 +5,14 @@ Devvit.configure({
   redditAPI: true,
 });
 
-// Add a menu item to the subreddit menu for instantiating the new experience post
+// ✅ Add a menu item for moderators to create an Adventure Quest post
 Devvit.addMenuItem({
   label: 'Start an Adventure Quest',
   location: 'subreddit',
   forUserType: 'moderator',
   onPress: async (_event, context) => {
     const { reddit, ui } = context;
-    ui.showToast("Creating a new Adventure Quest...");
+    ui.showToast("Creating an Adventure Quest...");
 
     const subreddit = await reddit.getCurrentSubreddit();
     const post = await reddit.submitPost({
@@ -29,11 +29,11 @@ Devvit.addMenuItem({
   },
 });
 
-// Add a custom "Adventure Quest" post type
+// ✅ Custom post type: "Adventure Quest" with voting feature
 Devvit.addCustomPostType({
   name: 'Adventure Quest',
   height: 'regular',
-  render: (_context) => {
+  render: (context) => {
     const [votes, setVotes] = useState({ choiceA: 0, choiceB: 0 });
 
     return (
@@ -43,15 +43,13 @@ Devvit.addCustomPostType({
 
         <button
           appearance="primary"
-          onPress={() => setVotes((prev) => ({ ...prev, choiceA: prev.choiceA + 1 }))}
-        >
+          onPress={() => setVotes((prev) => ({ ...prev, choiceA: prev.choiceA + 1 }))}>
           🏹 Attack the traveler! ({votes.choiceA} votes)
         </button>
 
         <button
           appearance="secondary"
-          onPress={() => setVotes((prev) => ({ ...prev, choiceB: prev.choiceB + 1 }))}
-        >
+          onPress={() => setVotes((prev) => ({ ...prev, choiceB: prev.choiceB + 1 }))}>
           🤝 Greet the traveler! ({votes.choiceB} votes)
         </button>
       </vstack>

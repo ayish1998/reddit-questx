@@ -1,4 +1,4 @@
-// src/scenarios.ts
+// src/scenarios.tsx
   export const challengeScenarios: ChallengeScenario[] = [
     {
       id: "phishing-email",

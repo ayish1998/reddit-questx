@@ -1,4 +1,4 @@
-// src/types.ts
+// src/types.tsx
 interface ChallengeScenario {
     id: string;
     description: string;

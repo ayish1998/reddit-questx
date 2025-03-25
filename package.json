@@ -5,14 +5,20 @@
   "license": "BSD-3-Clause",
   "type": "module",
   "dependencies": {
-    "@devvit/public-api": "^0.11.10",
+    "@devvit/public-api": "^0.11.11",
     "@mantine/core": "^7.17.2",
     "@types/react": "^19.0.11",
     "@types/react-dom": "^19.0.4",
+    "ngx-webstorage-service": "^5.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
-    "typescript": "5.3.2"
+    "typescript": "^5.3.2"
+  },
+  "scripts": {
+    "dev": "vite",
+    "start": "vite",
+    "build": "tsc && vite build"
   }
 }

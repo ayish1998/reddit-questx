@@ -1,9 +1,9 @@
 // src/main.tsx
 import { Devvit } from "@devvit/public-api";
 import { challengeScenarios } from "./scenerios";
-import { validateAnswer } from "../src/utils/validations";
-import { ScoreManager } from "../src/utils/scoring";
-import React from "react"
+import { validateAnswer } from "./utils/validation";
+import { ScoreManager } from "./utils/scoring";
+import React from "react";
 
 Devvit.configure({
   redditAPI: true,
@@ -31,28 +31,29 @@ Devvit.addMenuItem({
       const post = await reddit.submitPost({
         title: "🛡 CyberQuest: Online Safety Challenge! 🛡",
         subredditName: subreddit.name,
-        postType: "CyberQuest",
-        blocks: [
+        richtext: [
           {
-            type: "vstack",
-            alignment: "center middle",
+            type: "paragraph",
             children: [
               {
                 type: "text",
-                size: "large",
                 text: "🛡 CyberQuest Challenge! 🛡",
+                size: "large",
+                weight: "bold",
               },
+            ],
+          },
+          {
+            type: "paragraph",
+            children: [
               {
                 type: "text",
-                size: "medium",
                 text: randomScenario.description,
+                size: "medium",
               },
             ],
           },
         ],
-        metadata: {
-          scenarioId: randomScenario.id,
-        },
       });
 
       ui.navigateTo(post);
@@ -66,9 +67,11 @@ Devvit.addMenuItem({
 Devvit.addCustomPostType({
   name: "CyberQuest",
   height: "tall",
-  render: async (context) => {
+  render: (context) => {
     const { reddit, ui } = context;
-    const [scoreManager] = React.useState(() => new ScoreManager());
+    const [scoreManager] = React.useState(
+      () => new ScoreManager(context.settings)
+    );
     const [currentScenario, setCurrentScenario] =
       React.useState<ChallengeScenario | null>(null);
     const [feedback, setFeedback] = React.useState("");
@@ -77,8 +80,13 @@ Devvit.addCustomPostType({
 
     React.useEffect(() => {
       const loadUser = async () => {
-        const user = await reddit.getCurrentUser();
-        setUsername(user?.username || "Guest");
+        try {
+          const user = await reddit.getCurrentUser();
+          setUsername(user?.username || "Guest");
+        } catch (error) {
+          console.error("Error fetching user:", error);
+          setUsername("Guest");
+        }
       };
       loadUser();
     }, []);
@@ -86,39 +94,50 @@ Devvit.addCustomPostType({
     React.useEffect(() => {
       const initializeScenario = async () => {
         if (!context.postId) return;
-        
+
         try {
           const post = await reddit.getPostById(context.postId);
-          const scenarioId = post?.metadata?.scenarioId;
+          console.log("Post body:", post?.body);
+          const scenarioId = post?.body ? extractScenarioId(post.body) : null;
           const scenario = challengeScenarios.find((s) => s.id === scenarioId);
           setCurrentScenario(scenario || challengeScenarios[0]);
         } catch (error) {
           console.error("Error fetching post:", error);
-          setCurrentScenario(challengeScenarios[0]); // Fallback to first scenario
+          setCurrentScenario(challengeScenarios[0]);
         }
       };
       initializeScenario();
     }, [context.postId]);
+
+    const processedComments = React.useRef(new Set<string>());
 
     React.useEffect(() => {
       const fetchCommentsAndUpdateScores = async () => {
         if (!context.postId || !currentScenario) return;
 
         try {
-          const comments = await reddit.getComments({ postId: context.postId });
-          comments.forEach((comment) => {
+          const commentsArray = await reddit
+            .getComments({ postId: context.postId })
+            .all();
+
+          for (const comment of commentsArray) {
+            if (processedComments.current.has(comment.id)) continue;
+
             const text = comment?.body?.toLowerCase().trim() || "";
-            const username = comment.author?.name || "Unknown";
+            console.log(
+              `Checking answer: "${text}" for scenario: ${currentScenario?.id}`
+            );
+            const username = comment.authorName || "Unknown";
 
             if (validateAnswer(text, currentScenario.id)) {
-              scoreManager.addPoints(username, 1);
-              setFeedback(
-                "Correct! \u2705\uFE0F " + username + " earned a point."
-              );
+              await scoreManager.addPoints(username, 1);
+              setFeedback(`✅ Correct! ${username} earned a point.`);
             } else {
               setFeedback(`❌ Incorrect! ${username}, try again.`);
             }
-          });
+
+            processedComments.current.add(comment.id); // Mark comment as processed
+          }
 
           setLeaderboard(scoreManager.getLeaderboard());
         } catch (error) {
@@ -133,7 +152,7 @@ Devvit.addCustomPostType({
     }, [context.postId, currentScenario]);
 
     if (!currentScenario) {
-      return ui.render({
+      return {
         type: "vstack",
         alignment: "center middle",
         padding: "large",
@@ -150,10 +169,10 @@ Devvit.addCustomPostType({
             text: "Loading challenge...",
           },
         ],
-      });
+      };
     }
 
-    return ui.render({
+    return {
       type: "vstack",
       height: "100%",
       width: "100%",
@@ -261,7 +280,7 @@ Devvit.addCustomPostType({
                       size: "xlarge",
                       weight: "bold",
                       color: "#FF4500",
-                      text: `${scoreManager.getScore(username)?.points || 0}`,
+                      text: `${scoreManager.getScore(username)?.points ?? 0}`,
                     },
                     {
                       type: "text",
@@ -283,8 +302,8 @@ Devvit.addCustomPostType({
                       text: `${
                         scoreManager
                           .getScore(username)
-                          ?.badges.filter((b) => b.type === "cyber-guardian")
-                          .length || 0
+                          ?.badges?.filter((b) => b.type === "cyber-guardian")
+                          .length ?? 0
                       }`,
                     },
                     {
@@ -320,7 +339,7 @@ Devvit.addCustomPostType({
                       type: "hstack",
                       width: `${Math.min(
                         100,
-                        (scoreManager.getScore(username)?.points || 0) * 10
+                        (scoreManager.getScore(username)?.points ?? 0) * 10
                       )}%`,
                       height: "100%",
                       backgroundColor: "#FF4500",
@@ -473,9 +492,14 @@ Devvit.addCustomPostType({
             },
           ],
         },
-      ].filter(Boolean), 
-    });
+      ].filter(Boolean),
+    };
   },
 });
 
 export default Devvit;
+
+const extractScenarioId = (body: string): string | null => {
+  const match = body.match(/scenarioId: "([^"]+)"/);
+  return match ? match[1] : null;
+};

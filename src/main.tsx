@@ -1,27 +1,21 @@
-// Import Statements
-import { Devvit } from '@devvit/public-api';
+// src/main.tsx
+import { Devvit } from "@devvit/public-api";
+import { challengeScenarios } from "./scenerios";
+import { validateAnswer } from "../src/utils/validations";
+import { ScoreManager } from "../src/utils/scoring";
+import React from "react"
 
 Devvit.configure({
   redditAPI: true,
 });
 
-// ✅ Add a menu item for moderators to create a CyberQuest post
 Devvit.addMenuItem({
-  label: 'Start CyberQuest Challenge',
-  location: 'subreddit',
-  forUserType: 'moderator',
+  label: "Start CyberQuest Challenge",
+  location: "subreddit",
+  forUserType: "moderator",
   onPress: async (_event, context) => {
     const { reddit, ui } = context;
     ui.showToast("Creating a CyberQuest Challenge...");
-
-    const scenarios = [
-      "⚠️ Scenario: You receive an email saying you've won $1,000! What do you do?",
-      "⚠️ Scenario: A pop-up appears saying your computer is infected. What do you do?",
-      "⚠️ Scenario: You get a text message asking for your password. What do you do?",
-      "⚠️ Scenario: A stranger on social media asks for your personal information. What do you do?",
-    ];
-
-    const randomScenario = scenarios[Math.floor(Math.random() * scenarios.length)];
 
     try {
       const subreddit = await reddit.getCurrentSubreddit();
@@ -29,26 +23,37 @@ Devvit.addMenuItem({
         throw new Error("Failed to fetch subreddit information.");
       }
 
+      const randomScenario =
+        challengeScenarios[
+          Math.floor(Math.random() * challengeScenarios.length)
+        ];
+
       const post = await reddit.submitPost({
-        title: '🛡️ CyberQuest: Online Safety Challenge! 🛡️',
+        title: "🛡 CyberQuest: Online Safety Challenge! 🛡",
         subredditName: subreddit.name,
-        postType: 'CyberQuest',
+        postType: "CyberQuest",
         blocks: [
           {
             type: "vstack",
             alignment: "center middle",
             children: [
-              { type: "text", size: "large", text: "🛡️ CyberQuest Challenge! 🛡️" },
-              { type: "text", size: "medium", text: randomScenario },
-              { type: "text", size: "small", text: "(Comment: 'Report', 'Ignore', 'Delete', 'Block', or another action)" }
-            ]
-          }
-        ]
+              {
+                type: "text",
+                size: "large",
+                text: "🛡 CyberQuest Challenge! 🛡",
+              },
+              {
+                type: "text",
+                size: "medium",
+                text: randomScenario.description,
+              },
+            ],
+          },
+        ],
+        metadata: {
+          scenarioId: randomScenario.id,
+        },
       });
-
-      if (!post) {
-        throw new Error("Failed to create post.");
-      }
 
       ui.navigateTo(post);
     } catch (error) {
@@ -58,136 +63,418 @@ Devvit.addMenuItem({
   },
 });
 
-// ✅ CyberQuest Challenge UI
 Devvit.addCustomPostType({
-  name: 'CyberQuest',
-  height: 'regular',
+  name: "CyberQuest",
+  height: "tall",
   render: async (context) => {
-    const { reddit, useState, useEffect } = context;
+    const { reddit, ui } = context;
+    const [scoreManager] = React.useState(() => new ScoreManager());
+    const [currentScenario, setCurrentScenario] =
+      React.useState<ChallengeScenario | null>(null);
+    const [feedback, setFeedback] = React.useState("");
+    const [leaderboard, setLeaderboard] = React.useState<GameScore[]>([]);
+    const [username, setUsername] = React.useState("");
 
-    // ✅ State variables
-    const [score, setScore] = useState(0);
-    const [feedback, setFeedback] = useState("");
-    const [leaderboard, setLeaderboard] = useState<{ [username: string]: number }>({});
-    const [currentScenario, setCurrentScenario] = useState("⚠️ Loading your CyberQuest challenge...");
-
-    const correctAnswers = new Set(["report", "change", "ignore", "delete", "block"]);
-
-    const scenarios = [
-      "⚠️ You receive an email saying you've won $1,000! What do you do?",
-      "⚠️ A pop-up appears saying your computer is infected. What do you do?",
-      "⚠️ You get a text message asking for your password. What do you do?",
-      "⚠️ A stranger on social media asks for your personal information. What do you do?",
-    ];
-
-    // ✅ Load a random scenario when the component mounts
-    useEffect(() => {
-      setCurrentScenario(scenarios[Math.floor(Math.random() * scenarios.length)]);
+    React.useEffect(() => {
+      const loadUser = async () => {
+        const user = await reddit.getCurrentUser();
+        setUsername(user?.username || "Guest");
+      };
+      loadUser();
     }, []);
 
-    // ✅ Fetch comments and update scores
-    async function fetchComments() {
-      if (!context.postId) {
-        setFeedback("Error: Post ID is missing.");
-        return;
-      }
-
-      try {
-        console.log("Fetching comments for post ID:", context.postId);
-        const comments = await reddit.getComments({ postId: context.postId });
-
-        if (!Array.isArray(comments)) {
-          throw new Error("Invalid comments data received.");
+    React.useEffect(() => {
+      const initializeScenario = async () => {
+        if (!context.postId) return;
+        
+        try {
+          const post = await reddit.getPostById(context.postId);
+          const scenarioId = post?.metadata?.scenarioId;
+          const scenario = challengeScenarios.find((s) => s.id === scenarioId);
+          setCurrentScenario(scenario || challengeScenarios[0]);
+        } catch (error) {
+          console.error("Error fetching post:", error);
+          setCurrentScenario(challengeScenarios[0]); // Fallback to first scenario
         }
-
-        let newScore = 0;
-        let feedbackMessage = "";
-        const updatedLeaderboard: { [username: string]: number } = { ...leaderboard };
-
-        for (const comment of comments) {
-          const text = comment?.body?.toLowerCase().trim() || "";
-          const username = comment.author?.name || "Unknown";
-
-          if (correctAnswers.has(text)) {
-            newScore++;
-            updatedLeaderboard[username] = (updatedLeaderboard[username] || 0) + 1;
-            feedbackMessage = `✅ Correct! ${username} earned a point.`;
-          } else {
-            feedbackMessage = `❌ Incorrect! ${username}, try again.`;
-          }
-        }
-
-        setScore(newScore);
-        setLeaderboard(updatedLeaderboard);
-        setFeedback(feedbackMessage);
-      } catch (error) {
-        console.error("Error fetching comments:", error);
-        setFeedback("Failed to fetch comments. Please try again later.");
-      }
-    }
-
-    // ✅ Poll for new comments every 5 seconds
-    useEffect(() => {
-      fetchComments();
-      const interval = setInterval(fetchComments, 5000);
-      return () => clearInterval(interval);
+      };
+      initializeScenario();
     }, [context.postId]);
 
-    // ✅ Sort leaderboard by score
-    const sortedLeaderboard = Object.entries(leaderboard)
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-      .slice(0, 5);
+    React.useEffect(() => {
+      const fetchCommentsAndUpdateScores = async () => {
+        if (!context.postId || !currentScenario) return;
 
-    // ✅ Calculate progress bar width
-    const progressBarWidth = Math.min((score / 10) * 100, 100);
+        try {
+          const comments = await reddit.getComments({ postId: context.postId });
+          comments.forEach((comment) => {
+            const text = comment?.body?.toLowerCase().trim() || "";
+            const username = comment.author?.name || "Unknown";
 
-    // ✅ Badge system
-    const badge = score >= 10 ? "🏆 CyberGuardian Badge Unlocked!" : "";
+            if (validateAnswer(text, currentScenario.id)) {
+              scoreManager.addPoints(username, 1);
+              setFeedback(
+                "Correct! \u2705\uFE0F " + username + " earned a point."
+              );
+            } else {
+              setFeedback(`❌ Incorrect! ${username}, try again.`);
+            }
+          });
 
-    return (
-      <vstack 
-        height="100%" 
-        width="100%" 
-        gap="medium" 
-        alignment="center middle" 
-        padding="large" 
-        backgroundColor="#f4f4f4" 
-        cornerRadius="large"
-        shadow="medium"
-      >
-        <text size="large" weight="bold" color="#1e88e5">🛡️ CyberQuest Challenge! 🛡️</text>
-        <text size="medium" weight="bold" color="#333">How safe are you online?</text>
+          setLeaderboard(scoreManager.getLeaderboard());
+        } catch (error) {
+          console.error("Error fetching comments:", error);
+          setFeedback("Failed to fetch comments. Please try again later.");
+        }
+      };
 
-        {/* ✅ Challenge Scenario */}
-        <box width="90%" padding="medium" backgroundColor="#ffffff" cornerRadius="medium" shadow="small">
-          <text size="medium" weight="bold" color="#d32f2f">{currentScenario}</text>
-          <text size="small" color="#666">(Comment: 'Report', 'Ignore', 'Delete', 'Block', or another action)</text>
-        </box>
+      fetchCommentsAndUpdateScores();
+      const interval = setInterval(fetchCommentsAndUpdateScores, 5000);
+      return () => clearInterval(interval);
+    }, [context.postId, currentScenario]);
 
-        {/* ✅ Score and Feedback */}
-        <text size="medium" weight="bold" color="#388e3c">✅ Your Cyber Score: {score}</text>
-        <text size="small" color="#333">{feedback}</text>
-        {badge && <text size="medium" weight="bold" color="gold">{badge}</text>}
+    if (!currentScenario) {
+      return ui.render({
+        type: "vstack",
+        alignment: "center middle",
+        padding: "large",
+        grow: true,
+        children: [
+          {
+            type: "spinner",
+            size: "large",
+          },
+          {
+            type: "text",
+            size: "medium",
+            weight: "bold",
+            text: "Loading challenge...",
+          },
+        ],
+      });
+    }
 
-        {/* ✅ Progress Bar */}
-        <hstack width="80%" height="10px" backgroundColor="#ddd" cornerRadius="full">
-          <hstack width={`${progressBarWidth}%`} height="100%" backgroundColor="#4caf50" cornerRadius="full" />
-        </hstack>
-        <text size="small" color="#555">🎯 Complete 10 challenges to earn a badge!</text>
+    return ui.render({
+      type: "vstack",
+      height: "100%",
+      width: "100%",
+      gap: "medium",
+      alignment: "top center",
+      padding: "medium",
+      backgroundColor: "#DAE0E6",
+      children: [
+        // Header
+        {
+          type: "hstack",
+          width: "100%",
+          alignment: "center",
+          padding: "small",
+          backgroundColor: "#FFFFFF",
+          cornerRadius: "medium",
+          children: [
+            {
+              type: "text",
+              size: "xlarge",
+              weight: "bold",
+              color: "#FF4500",
+              text: "🛡 CyberQuest",
+            },
+          ],
+        },
 
-        {/* ✅ Leaderboard */}
-        <text size="medium" weight="bold" color="#ff9800">🏆 Leaderboard</text>
-        {sortedLeaderboard.length > 0 ? (
-          sortedLeaderboard.map(([username, points], index) => (
-            <text size="small" key={username} color="#333">
-              {index + 1}. {username}: {points} points
-            </text>
-          ))
-        ) : (
-          <text size="small" color="#666">No scores yet! Be the first to earn points.</text>
-        )}
-      </vstack>
-    );
+        // Challenge Card
+        {
+          type: "vstack",
+          width: "100%",
+          padding: "large",
+          backgroundColor: "#FFFFFF",
+          cornerRadius: "medium",
+          shadow: "small",
+          gap: "medium",
+          children: [
+            {
+              type: "text",
+              size: "large",
+              weight: "bold",
+              color: "#1A1A1B",
+              text: "Challenge:",
+            },
+            {
+              type: "text",
+              size: "medium",
+              color: "#1A1A1B",
+              text: currentScenario.description,
+            },
+            {
+              type: "vstack",
+              gap: "small",
+              padding: "small",
+              backgroundColor: "#F6F7F8",
+              cornerRadius: "small",
+              children: [
+                {
+                  type: "text",
+                  size: "small",
+                  weight: "bold",
+                  color: "#787C7E",
+                  text: "Hint:",
+                },
+                {
+                  type: "text",
+                  size: "small",
+                  color: "#787C7E",
+                  text: `Correct answers include: ${currentScenario.correctAnswers.join(
+                    ", "
+                  )}`,
+                },
+              ],
+            },
+          ],
+        },
+
+        // User Progress
+        {
+          type: "vstack",
+          width: "100%",
+          padding: "medium",
+          backgroundColor: "#FFFFFF",
+          cornerRadius: "medium",
+          gap: "small",
+          children: [
+            {
+              type: "text",
+              size: "large",
+              weight: "bold",
+              color: "#1A1A1B",
+              text: "Your Progress",
+            },
+            {
+              type: "hstack",
+              alignment: "center",
+              gap: "medium",
+              children: [
+                {
+                  type: "vstack",
+                  alignment: "center",
+                  children: [
+                    {
+                      type: "text",
+                      size: "xlarge",
+                      weight: "bold",
+                      color: "#FF4500",
+                      text: `${scoreManager.getScore(username)?.points || 0}`,
+                    },
+                    {
+                      type: "text",
+                      size: "small",
+                      color: "#787C7E",
+                      text: "Points",
+                    },
+                  ],
+                },
+                {
+                  type: "vstack",
+                  alignment: "center",
+                  children: [
+                    {
+                      type: "text",
+                      size: "xlarge",
+                      weight: "bold",
+                      color: "#FF4500",
+                      text: `${
+                        scoreManager
+                          .getScore(username)
+                          ?.badges.filter((b) => b.type === "cyber-guardian")
+                          .length || 0
+                      }`,
+                    },
+                    {
+                      type: "text",
+                      size: "small",
+                      color: "#787C7E",
+                      text: "Badges",
+                    },
+                  ],
+                },
+              ],
+            },
+            {
+              type: "vstack",
+              width: "100%",
+              gap: "xsmall",
+              children: [
+                {
+                  type: "text",
+                  size: "small",
+                  weight: "bold",
+                  color: "#787C7E",
+                  text: "Next badge at 10 points",
+                },
+                {
+                  type: "hstack",
+                  width: "100%",
+                  height: "12px",
+                  backgroundColor: "#EDEFF1",
+                  cornerRadius: "full",
+                  children: [
+                    {
+                      type: "hstack",
+                      width: `${Math.min(
+                        100,
+                        (scoreManager.getScore(username)?.points || 0) * 10
+                      )}%`,
+                      height: "100%",
+                      backgroundColor: "#FF4500",
+                      cornerRadius: "full",
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+
+        // Feedback Section
+        feedback
+          ? {
+              type: "vstack",
+              width: "100%",
+              padding: "medium",
+              backgroundColor: "#FFFFFF",
+              cornerRadius: "medium",
+              children: [
+                {
+                  type: "text",
+                  size: "medium",
+                  weight: "bold",
+                  color: feedback.includes("Correct") ? "#24A0ED" : "#FF4500",
+                  text: feedback,
+                },
+              ],
+            }
+          : null,
+
+        // Leaderboard
+        {
+          type: "vstack",
+          width: "100%",
+          padding: "medium",
+          backgroundColor: "#FFFFFF",
+          cornerRadius: "medium",
+          gap: "small",
+          children: [
+            {
+              type: "text",
+              size: "large",
+              weight: "bold",
+              color: "#1A1A1B",
+              text: "🏆 Leaderboard",
+            },
+            ...(leaderboard.length > 0
+              ? leaderboard.map((entry, index) => ({
+                  type: "hstack",
+                  width: "100%",
+                  alignment: "center",
+                  gap: "medium",
+                  padding: "small",
+                  children: [
+                    {
+                      type: "text",
+                      size: "medium",
+                      weight: "bold",
+                      color: "#1A1A1B",
+                      text: `${index + 1}.`,
+                    },
+                    {
+                      type: "text",
+                      size: "medium",
+                      color:
+                        entry.username === username ? "#FF4500" : "#1A1A1B",
+                      grow: true,
+                      text: entry.username,
+                    },
+                    {
+                      type: "hstack",
+                      gap: "small",
+                      alignment: "center",
+                      children: [
+                        {
+                          type: "text",
+                          size: "medium",
+                          weight: "bold",
+                          color: "#1A1A1B",
+                          text: `${entry.points}`,
+                        },
+                        ...(entry.badges.some(
+                          (b) => b.type === "cyber-guardian"
+                        )
+                          ? [
+                              {
+                                type: "image",
+                                url: "https://www.redditstatic.com/gold/awards/icon/Helpful_Placeholder-16.png",
+                                imageHeight: 16,
+                                imageWidth: 16,
+                              },
+                            ]
+                          : []),
+                      ],
+                    },
+                  ],
+                }))
+              : [
+                  {
+                    type: "text",
+                    size: "medium",
+                    color: "#787C7E",
+                    text: "No scores yet. Be the first to answer!",
+                  },
+                ]),
+          ],
+        },
+
+        // Instructions
+        {
+          type: "vstack",
+          width: "100%",
+          padding: "medium",
+          backgroundColor: "#FFFFFF",
+          cornerRadius: "medium",
+          gap: "small",
+          children: [
+            {
+              type: "text",
+              size: "medium",
+              weight: "bold",
+              color: "#1A1A1B",
+              text: "How to Play",
+            },
+            {
+              type: "text",
+              size: "small",
+              color: "#787C7E",
+              text: "1. Read the challenge above",
+            },
+            {
+              type: "text",
+              size: "small",
+              color: "#787C7E",
+              text: "2. Reply to this post with your answer",
+            },
+            {
+              type: "text",
+              size: "small",
+              color: "#787C7E",
+              text: "3. Earn points for correct answers",
+            },
+            {
+              type: "text",
+              size: "small",
+              color: "#787C7E",
+              text: "4. Climb the leaderboard!",
+            },
+          ],
+        },
+      ].filter(Boolean), 
+    });
   },
 });
 

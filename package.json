@@ -5,13 +5,18 @@
   "license": "BSD-3-Clause",
   "type": "module",
   "dependencies": {
+    "@chakra-ui/react": "^3.14.2",
     "@devvit/public-api": "^0.11.11",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
     "@mantine/core": "^7.17.2",
     "@types/react": "^19.0.11",
     "@types/react-dom": "^19.0.4",
+    "framer-motion": "^12.6.2",
     "ngx-webstorage-service": "^5.0.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
     "typescript": "^5.3.2"
@@ -20,5 +25,17 @@
     "dev": "vite",
     "start": "vite",
     "build": "tsc && vite build"
-  }
+  },
+  "description": "RedditQuest is a custom Reddit game designed to promote online safety awareness through interactive challenges.\r It integrates with r/RedditQuestTest to create engaging cybersecurity scenarios for users to respond to.",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ayish1998/reddit-questx.git"
+  },
+  "keywords": [],
+  "author": "",
+  "bugs": {
+    "url": "https://github.com/ayish1998/reddit-questx/issues"
+  },
+  "homepage": "https://github.com/ayish1998/reddit-questx#readme"
 }
